@@ -5,25 +5,24 @@ package.name = youtubedownloader
 package.domain = org.youtubedl
 
 source.dir = .
-source.include_exts = py,png,jpg,kv,ttf
+source.include_exts = py
 
 version = 1.0
 version.code = 1
 
-requirements = python3,kivy==2.1.0,kivymd==1.1.1,requests,certifi
+requirements = python3,kivy==2.1.0,kivymd==1.1.1,requests
 
 android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE
 
-# CORRECTION : Utiliser android.api seulement
-android.api = 30
+# Use older API to avoid build-tools 36.1 issue
+android.api = 29
 android.minapi = 21
-# SUPPRIMEZ cette ligne : android.sdk = 30
 
-# CORRECTION : Utiliser android.archs au lieu de android.arch
+# Use older NDK
+android.ndk = 21.3.6528147
+
+# Architecture
 android.archs = arm64-v8a
-
-# NDK version compatible
-android.ndk = 23b
 
 orientation = portrait
 fullscreen = 0
