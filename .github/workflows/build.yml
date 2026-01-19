@@ -1,4 +1,4 @@
-name: Build YouTube Downloader APK
+name: Build APK with License Fix
 
 on:
   push:
@@ -6,19 +6,20 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-android:
+  build:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     
     steps:
-    - name: Checkout repository
+    - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Set up Python 3.9
+    - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
         
-    - name: Install system dependencies
+    - name: Install Buildozer and dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -28,59 +29,68 @@ jobs:
           zip \
           unzip \
           openjdk-17-jdk \
-          autoconf \
-          automake \
-          cmake \
-          libffi-dev \
-          libssl-dev \
-          libtool \
-          pkg-config \
-          zlib1g-dev
+          wget \
+          curl
         
-    - name: Install Buildozer
-      run: |
-        python -m pip install --upgrade pip
         pip install buildozer cython
         
-    - name: Accept Android SDK licenses
+    - name: Setup Android SDK with accepted licenses
       run: |
+        echo "🔧 Setting up Android SDK..."
+        
+        # Create directories
         mkdir -p ~/.android
+        mkdir -p ~/.buildozer/android
+        
+        # Create license acceptance file
+        cat > ~/.android/licenses/android-sdk-license << 'EOF'
+8933bad161af4178b1185d1a37fbf41ea5269c55
+d56f5187479451eabf01fb78af6dfcb131a6481e
+24333f8a63b6825ea9c5514f83c2829b004d1fee
+EOF
+        
+        cat > ~/.android/licenses/android-sdk-preview-license << 'EOF'
+84831b9409646a918e30573bab4c9c91346d8abd
+EOF
+        
+        # Create repositories.cfg
         touch ~/.android/repositories.cfg
         
-        # Accept all Android SDK licenses
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
-        echo "licenses.accepted=true" > ~/.android/repositories.cfg
+        # Set environment variables
+        echo "ANDROID_HOME=/home/runner/.buildozer/android/platform/android-sdk" >> $GITHUB_ENV
+        echo "ANDROID_SDK_ROOT=/home/runner/.buildozer/android/platform/android-sdk" >> $GITHUB_ENV
+        echo "BUILD_OZER_ACCEPT_SDK_LICENSE=1" >> $GITHUB_ENV
+        echo "BUILD_OZER_SKIP_SDK_CHECK=1" >> $GITHUB_ENV
         
-    - name: Configure Buildozer
+    - name: Build APK with Buildozer
       run: |
-        # Create buildozer directory
-        mkdir -p ~/.buildozer
+        echo "🚀 Starting Buildozer build..."
         
-        # Create dummy license acceptance file
-        mkdir -p ~/.buildozer/android
-        echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/.buildozer/android/.android_license_accepted
-        echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.buildozer/android/.android_license_accepted
-        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> ~/.buildozer/android/.android_license_accepted
+        # Initialize if needed
+        if [ ! -f "buildozer.spec" ]; then
+          buildozer init
+        fi
         
-    - name: Build APK
-      run: |
-        echo "🚀 Starting Android build..."
+        # Clean and build
+        buildozer android clean 2>/dev/null || true
         
-        # Set environment variables for license acceptance
-        export ANDROID_HOME="$HOME/.buildozer/android/platform/android-sdk"
-        export ANDROID_SDK_ROOT="$ANDROID_HOME"
-        export ANDROID_NDK_HOME="$HOME/.buildozer/android/platform/android-ndk-r23b"
+        # Build with explicit yes to everything
+        yes | buildozer android debug 2>&1 | tail -200
         
-        # Force license acceptance
-        export BUILD_OZER_ACCEPT_SDK_LICENSE=1
-        export BUILD_OZER_SKIP_SDK_CHECK=1
+        # Check if APK was created
+        if [ -f "bin/*.apk" ]; then
+          echo "✅ APK created successfully!"
+          ls -lh bin/*.apk
+        else
+          echo "⚠️ No APK found in bin/, searching..."
+          find . -name "*.apk" -type f 2>/dev/null || echo "No APK found"
+        fi
         
-        # Build with timeout
-        timeout 2400 buildozer -v android debug 2>&1 | tail -300
-        
-    - name: Upload APK
+    - name: Upload APK if exists
       uses: actions/upload-artifact@v4
       with:
-        name: youtube-downloader-apk
-        path: bin/*.apk
+        name: youtube-downloader
+        path: |
+          bin/*.apk
+          .buildozer/**/*.apk
         if-no-files-found: warn
