@@ -5,19 +5,18 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:
+  workflow_dispatch:  # Permet de lancer manuellement
 
 jobs:
-  build-android:
+  build:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
+    - name: Checkout repository
       uses: actions/checkout@v4
       
-    - name: Set up Python
+    - name: Set up Python 3.9
       uses: actions/setup-python@v4
-      
       with:
         python-version: '3.9'
         
@@ -34,7 +33,6 @@ jobs:
           autoconf \
           automake \
           cmake \
-          ffmpeg \
           libffi-dev \
           libssl-dev \
           libtool \
@@ -43,43 +41,34 @@ jobs:
           libncurses5-dev \
           libncursesw5-dev
         
-    - name: Install Python dependencies
+    - name: Install Buildozer and dependencies
       run: |
         python -m pip install --upgrade pip
         pip install buildozer cython
         
-    - name: Build APK
+    - name: Build Android APK
       run: |
-        echo "🚀 Début de la compilation Android..."
-        buildozer android clean 2>/dev/null || true
-        buildozer -v android debug 2>&1 | tail -100
+        echo "🚀 Starting Android build..."
+        echo "Current directory: $(pwd)"
+        echo "Files in directory:"
+        ls -la
         
-    - name: Check if APK exists
-      id: check-apk
-      run: |
-        if ls bin/*.apk 1> /dev/null 2>&1; then
-          echo "APK créé avec succès!"
-          echo "apk_exists=true" >> $GITHUB_OUTPUT
-          echo "APK trouvé:"
-          ls -lh bin/*.apk
-        else
-          echo "Aucun APK trouvé dans bin/"
-          echo "apk_exists=false" >> $GITHUB_OUTPUT
-          echo "Recherche dans d'autres dossiers..."
-          find . -name "*.apk" -type f 2>/dev/null || echo "Aucun APK trouvé"
+        # Initialize Buildozer if needed
+        if [ ! -f "buildozer.spec" ]; then
+          echo "No buildozer.spec found, creating one..."
+          buildozer init
         fi
         
-    - name: Upload APK
-      if: steps.check-apk.outputs.apk_exists == 'true'
+        # Clean previous builds
+        buildozer android clean 2>/dev/null || true
+        
+        # Build with verbose output
+        timeout 1800 buildozer -v android debug 2>&1 | tail -200
+        
+    - name: Upload APK if exists
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: youtube-downloader-apk
         path: bin/*.apk
-        retention-days: 7
-        
-    - name: Show error if no APK
-      if: steps.check-apk.outputs.apk_exists == 'false'
-      run: |
-        echo "❌ Échec de la création de l'APK"
-        echo "Recherche des logs d'erreur..."
-        find . -name "*.log" -type f -exec echo "=== {} ===" \; -exec tail -50 {} \; 2>/dev/null | grep -A5 -B5 -i "error\|fail\|exception" || echo "Aucun log d'erreur trouvé"
+        if-no-files-found: warn
