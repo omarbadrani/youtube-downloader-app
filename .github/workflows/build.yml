@@ -41,7 +41,6 @@ EOF
         # Verify files
         echo "✅ License files created:"
         ls -la ~/.android/licenses/
-        cat ~/.android/licenses/*
         
     - name: Install Buildozer
       run: |
@@ -54,13 +53,8 @@ EOF
         echo "🚀 Starting Buildozer..."
         
         # Force environment variables
-        export ANDROID_HOME="$HOME/.buildozer/android/platform/android-sdk"
-        export ANDROID_SDK_ROOT="$ANDROID_HOME"
         export BUILD_OZER_ACCEPT_SDK_LICENSE=yes
         export BUILD_OZER_SKIP_SDK_CHECK=yes
-        
-        # Create buildozer directory
-        mkdir -p ~/.buildozer/android
         
         # Build with YES to all prompts
         yes | buildozer android debug 2>&1 | tail -150
