@@ -1,4 +1,4 @@
-name: Build APK with License Fix
+name: Build YouTube Downloader APK
 
 on:
   push:
@@ -19,7 +19,7 @@ jobs:
       with:
         python-version: '3.9'
         
-    - name: Install Buildozer and dependencies
+    - name: Install dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -32,65 +32,55 @@ jobs:
           wget \
           curl
         
+    - name: Install Buildozer
+      run: |
         pip install buildozer cython
         
-    - name: Setup Android SDK with accepted licenses
+    - name: Setup Android licenses
       run: |
-        echo "🔧 Setting up Android SDK..."
+        echo "🔧 Setting up Android SDK licenses..."
         
-        # Create directories
-        mkdir -p ~/.android
-        mkdir -p ~/.buildozer/android
+        # Create Android directories
+        mkdir -p ~/.android/licenses
         
-        # Create license acceptance file
-        cat > ~/.android/licenses/android-sdk-license << 'EOF'
-8933bad161af4178b1185d1a37fbf41ea5269c55
-d56f5187479451eabf01fb78af6dfcb131a6481e
-24333f8a63b6825ea9c5514f83c2829b004d1fee
-EOF
+        # Accept Android SDK licenses
+        echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/.android/licenses/android-sdk-license
+        echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.android/licenses/android-sdk-license
+        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> ~/.android/licenses/android-sdk-license
         
-        cat > ~/.android/licenses/android-sdk-preview-license << 'EOF'
-84831b9409646a918e30573bab4c9c91346d8abd
-EOF
+        echo "84831b9409646a918e30573bab4c9c91346d8abd" > ~/.android/licenses/android-sdk-preview-license
         
         # Create repositories.cfg
         touch ~/.android/repositories.cfg
         
-        # Set environment variables
-        echo "ANDROID_HOME=/home/runner/.buildozer/android/platform/android-sdk" >> $GITHUB_ENV
-        echo "ANDROID_SDK_ROOT=/home/runner/.buildozer/android/platform/android-sdk" >> $GITHUB_ENV
-        echo "BUILD_OZER_ACCEPT_SDK_LICENSE=1" >> $GITHUB_ENV
-        echo "BUILD_OZER_SKIP_SDK_CHECK=1" >> $GITHUB_ENV
+        echo "✅ Android licenses configured"
         
-    - name: Build APK with Buildozer
+    - name: Build APK
       run: |
         echo "🚀 Starting Buildozer build..."
         
-        # Initialize if needed
-        if [ ! -f "buildozer.spec" ]; then
-          buildozer init
-        fi
+        # Set environment variables
+        export BUILD_OZER_ACCEPT_SDK_LICENSE=1
+        export BUILD_OZER_SKIP_SDK_CHECK=1
         
-        # Clean and build
+        # Clean previous builds
         buildozer android clean 2>/dev/null || true
         
-        # Build with explicit yes to everything
-        yes | buildozer android debug 2>&1 | tail -200
+        # Build with timeout
+        timeout 1800 buildozer -v android debug 2>&1 | tail -100
         
-        # Check if APK was created
-        if [ -f "bin/*.apk" ]; then
+        # Check for APK
+        if ls bin/*.apk 1> /dev/null 2>&1; then
           echo "✅ APK created successfully!"
           ls -lh bin/*.apk
         else
-          echo "⚠️ No APK found in bin/, searching..."
-          find . -name "*.apk" -type f 2>/dev/null || echo "No APK found"
+          echo "⚠️ Searching for APK files..."
+          find . -name "*.apk" -type f 2>/dev/null | head -5
         fi
         
-    - name: Upload APK if exists
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: youtube-downloader
-        path: |
-          bin/*.apk
-          .buildozer/**/*.apk
+        name: youtube-downloader-apk
+        path: bin/*.apk
         if-no-files-found: warn
