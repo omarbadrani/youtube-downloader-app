@@ -3,12 +3,10 @@ name: Build YouTube Downloader APK
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:  # Permet de lancer manuellement
+  workflow_dispatch:
 
 jobs:
-  build:
+  build-android:
     runs-on: ubuntu-latest
     
     steps:
@@ -37,36 +35,50 @@ jobs:
           libssl-dev \
           libtool \
           pkg-config \
-          zlib1g-dev \
-          libncurses5-dev \
-          libncursesw5-dev
+          zlib1g-dev
         
-    - name: Install Buildozer and dependencies
+    - name: Install Buildozer
       run: |
         python -m pip install --upgrade pip
         pip install buildozer cython
         
-    - name: Build Android APK
+    - name: Accept Android SDK licenses
+      run: |
+        mkdir -p ~/.android
+        touch ~/.android/repositories.cfg
+        
+        # Accept all Android SDK licenses
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+        echo "licenses.accepted=true" > ~/.android/repositories.cfg
+        
+    - name: Configure Buildozer
+      run: |
+        # Create buildozer directory
+        mkdir -p ~/.buildozer
+        
+        # Create dummy license acceptance file
+        mkdir -p ~/.buildozer/android
+        echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/.buildozer/android/.android_license_accepted
+        echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.buildozer/android/.android_license_accepted
+        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> ~/.buildozer/android/.android_license_accepted
+        
+    - name: Build APK
       run: |
         echo "🚀 Starting Android build..."
-        echo "Current directory: $(pwd)"
-        echo "Files in directory:"
-        ls -la
         
-        # Initialize Buildozer if needed
-        if [ ! -f "buildozer.spec" ]; then
-          echo "No buildozer.spec found, creating one..."
-          buildozer init
-        fi
+        # Set environment variables for license acceptance
+        export ANDROID_HOME="$HOME/.buildozer/android/platform/android-sdk"
+        export ANDROID_SDK_ROOT="$ANDROID_HOME"
+        export ANDROID_NDK_HOME="$HOME/.buildozer/android/platform/android-ndk-r23b"
         
-        # Clean previous builds
-        buildozer android clean 2>/dev/null || true
+        # Force license acceptance
+        export BUILD_OZER_ACCEPT_SDK_LICENSE=1
+        export BUILD_OZER_SKIP_SDK_CHECK=1
         
-        # Build with verbose output
-        timeout 1800 buildozer -v android debug 2>&1 | tail -200
+        # Build with timeout
+        timeout 2400 buildozer -v android debug 2>&1 | tail -300
         
-    - name: Upload APK if exists
-      if: success()
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: youtube-downloader-apk
