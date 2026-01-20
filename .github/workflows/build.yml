@@ -1,4 +1,4 @@
-name: Build APK
+name: Build APK Debug
 
 on:
   push:
@@ -15,25 +15,58 @@ jobs:
       
     - name: Setup Android licenses
       run: |
+        echo "🔧 Setting up Android licenses..."
         mkdir -p ~/.android/licenses
         echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > ~/.android/licenses/android-sdk-license
         echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.android/licenses/android-sdk-license
         echo "8933bad161af4178b1185d1a37fbf41ea5269c55" >> ~/.android/licenses/android-sdk-license
-        echo "84831b9409646a918e30573bab4c9c91346d8abd" > ~/.android/licenses/android-sdk-preview-license
+        echo "✅ Android licenses configured"
         
-    - name: Install dependencies
+    - name: Install all dependencies
       run: |
+        echo "📦 Installing dependencies..."
         sudo apt update
-        sudo apt install -y python3-pip openjdk-17-jdk cython3
+        sudo apt install -y \
+          python3-pip \
+          python3-venv \
+          openjdk-17-jdk \
+          cython3 \
+          git \
+          zip \
+          unzip
+        
+        pip install --upgrade pip
         pip install buildozer cython
+        
+        echo "✅ Dependencies installed"
+        echo "Buildozer version:"
+        buildozer --version || echo "Buildozer not found"
         
     - name: Build APK
       run: |
+        echo "🚀 Starting Android build..."
         export BUILD_OZER_ACCEPT_SDK_LICENSE=1
-        buildozer android debug
+        export BUILD_OZER_SKIP_SDK_CHECK=1
+        
+        # Build with timeout
+        timeout 2400 buildozer -v android debug 2>&1 | tail -200
+        
+    - name: Check for APK
+      run: |
+        echo "🔍 Checking for APK..."
+        if [ -f "bin/*.apk" ]; then
+          echo "✅ APK created successfully!"
+          ls -lh bin/*.apk
+        else
+          echo "⚠️ Searching for APK..."
+          find . -name "*.apk" -type f 2>/dev/null || echo "No APK found"
+        fi
         
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: youtube-app
-        path: bin/*.apk
+        name: youtube-downloader-app
+        path: |
+          bin/*.apk
+          .buildozer/**/*.apk
+        if-no-files-found: warn
