@@ -24,8 +24,8 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install -y python3-pip openjdk-17-jdk
-        pip install buildozer
+        sudo apt install -y python3-pip openjdk-17-jdk cython3
+        pip install buildozer cython
         
     - name: Build APK
       run: |
